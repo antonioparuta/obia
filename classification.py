@@ -1,7 +1,6 @@
 import os
 import configparser
 import random
-
 import geopandas as gpd
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
@@ -52,6 +51,24 @@ def prepare_classification_data(stats_path, points_path):
     return x_train, y_train, points
 
 
+def classification_step(x, y, month, stats_path, result_folder):
+    stats_shp = gpd.read_file(stats_path)
+    x_train, x_test, y_train, y_test = train_test_split(x, y,
+                                                        test_size=0.2,
+                                                        random_state=42)
+    rfc = RandomForestClassifier(n_estimators=200)
+    rfc.fit(x_train, y_train.values.ravel())
+    y_prediction = rfc.predict(x_test)
+    print(confusion_matrix(y_test, y_prediction))
+    print(classification_report(y_test, y_prediction))
+    print(accuracy_score(y_test, y_prediction))
+    prediction = stats_shp[['mean_1', 'mean_2', 'mean_3', 'mean_4']]
+    stats_shp["class_ind"] = rfc.predict(prediction)
+    labeled_shp = label_classification(stats_shp)
+    stats_shp = labeled_shp.drop("class_ind", axis=1)
+    stats_shp.to_file(os.path.join(result_folder, f"{month}_classification.shp"))
+
+
 def equal_random_stratified(month, classified_shp_path, field_name, number_segments, result_folder):
     classified_shp = gpd.read_file(classified_shp_path)
     unique_values = classified_shp[field_name].unique().tolist()
@@ -74,24 +91,6 @@ def equal_random_stratified(month, classified_shp_path, field_name, number_segme
     }
     gdf = gpd.GeoDataFrame(data).set_crs(epsg=32633)
     gdf.to_file(os.path.join(result_folder, f"{month}_equal_random_stratified.shp"))
-
-
-def classification_step(x, y, month, stats_path, result_folder):
-    stats_shp = gpd.read_file(stats_path)
-    x_train, x_test, y_train, y_test = train_test_split(x, y,
-                                                        test_size=0.2,
-                                                        random_state=42)
-    rfc = RandomForestClassifier(n_estimators=200)
-    rfc.fit(x_train, y_train.values.ravel())
-    y_prediction = rfc.predict(x_test)
-    print(confusion_matrix(y_test, y_prediction))
-    print(classification_report(y_test, y_prediction))
-    print(accuracy_score(y_test, y_prediction))
-    prediction = stats_shp[['mean_1', 'mean_2', 'mean_3', 'mean_4']]
-    stats_shp["class_ind"] = rfc.predict(prediction)
-    labeled_shp = label_classification(stats_shp)
-    stats_shp = labeled_shp.drop("class_ind", axis=1)
-    stats_shp.to_file(os.path.join(result_folder, f"{month}_classification.shp"))
 
 
 def main():
